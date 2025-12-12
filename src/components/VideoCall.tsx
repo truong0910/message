@@ -52,59 +52,49 @@ const VideoCall: React.FC<VideoCallProps> = ({
   const remoteUserIdRef = useRef<number | null>(null);
 
   // TURN credentials từ Metered
-  const turnDomain = import.meta.env.VITE_TURN_DOMAIN;
   const turnUsername = import.meta.env.VITE_TURN_USERNAME;
   const turnPassword = import.meta.env.VITE_TURN_PASSWORD;
 
   useEffect(() => {
-    // Sử dụng free STUN servers
-    const defaultIceServers: RTCIceServer[] = [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
+    // ICE servers theo đúng cấu hình Metered
+    const iceServersList: RTCIceServer[] = [
+      { urls: 'stun:stun.relay.metered.ca:80' },
     ];
 
     // Thêm TURN servers nếu có credentials
-    if (turnDomain && turnUsername && turnPassword) {
-      const turnServers: RTCIceServer[] = [
+    if (turnUsername && turnPassword) {
+      iceServersList.push(
         {
-          urls: `turn:${turnDomain}:80`,
+          urls: 'turn:global.relay.metered.ca:80',
           username: turnUsername,
           credential: turnPassword,
         },
         {
-          urls: `turn:${turnDomain}:80?transport=tcp`,
+          urls: 'turn:global.relay.metered.ca:80?transport=tcp',
           username: turnUsername,
           credential: turnPassword,
         },
         {
-          urls: `turn:${turnDomain}:443`,
+          urls: 'turn:global.relay.metered.ca:443',
           username: turnUsername,
           credential: turnPassword,
         },
         {
-          urls: `turns:${turnDomain}:443`,
+          urls: 'turns:global.relay.metered.ca:443?transport=tcp',
           username: turnUsername,
           credential: turnPassword,
-        },
-      ];
-
-      setIceServers({
-        iceServers: [...defaultIceServers, ...turnServers],
-        iceCandidatePoolSize: 10,
-      });
-      console.log('TURN servers configured with credentials');
+        }
+      );
+      console.log('TURN servers configured with Metered credentials');
     } else {
-      // Fallback to STUN only
-      setIceServers({
-        iceServers: defaultIceServers,
-        iceCandidatePoolSize: 10,
-      });
-      console.log('Using STUN servers only (no TURN credentials)');
+      console.log('Using STUN only (no TURN credentials)');
     }
-  }, [turnDomain, turnUsername, turnPassword]);
+
+    setIceServers({
+      iceServers: iceServersList,
+      iceCandidatePoolSize: 10,
+    });
+  }, [turnUsername, turnPassword]);
 
   // Get other user in conversation
   const getOtherUserId = async () => {
