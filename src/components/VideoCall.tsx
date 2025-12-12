@@ -50,6 +50,8 @@ const VideoCall: React.FC<VideoCallProps> = ({
   const localStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
   const remoteUserIdRef = useRef<number | null>(null);
+  const callStartTimeRef = useRef<Date | null>(null);
+  const callLoggedRef = useRef<boolean>(false);
 
   // TURN credentials từ Metered
   const turnUsername = import.meta.env.VITE_TURN_USERNAME;
@@ -95,6 +97,47 @@ const VideoCall: React.FC<VideoCallProps> = ({
       iceCandidatePoolSize: 10,
     });
   }, [turnUsername, turnPassword]);
+
+  // Format call duration
+  const formatCallDuration = (startTime: Date): string => {
+    const duration = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    if (minutes > 0) {
+      return `${minutes} phút ${seconds} giây`;
+    }
+    return `${seconds} giây`;
+  };
+
+  // Log call to messages
+  const logCallToMessages = async (type: 'completed' | 'missed' | 'rejected' | 'cancelled') => {
+    if (!user || callLoggedRef.current) return;
+    callLoggedRef.current = true;
+
+    let content = '';
+    switch (type) {
+      case 'completed':
+        const duration = callStartTimeRef.current ? formatCallDuration(callStartTimeRef.current) : '';
+        content = `📹 Cuộc gọi video${duration ? ` - ${duration}` : ''}`;
+        break;
+      case 'missed':
+        content = '📵 Cuộc gọi nhỡ';
+        break;
+      case 'rejected':
+        content = '📵 Cuộc gọi bị từ chối';
+        break;
+      case 'cancelled':
+        content = '📵 Cuộc gọi đã hủy';
+        break;
+    }
+
+    await supabase.from('messages').insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: content,
+      message_type: 'text',
+    });
+  };
 
   // Get other user in conversation
   const getOtherUserId = async () => {
@@ -205,6 +248,7 @@ const VideoCall: React.FC<VideoCallProps> = ({
     setRemoteUserId(callerId);
     remoteUserIdRef.current = callerId;
     setCallStatus('connected');
+    callStartTimeRef.current = new Date(); // Start timer when call is accepted
 
     const stream = await initializeMedia();
     if (!stream) return;
@@ -234,11 +278,14 @@ const VideoCall: React.FC<VideoCallProps> = ({
       signal_data: {},
     });
     
+    // Log rejected call (người nhận từ chối)
+    await logCallToMessages('rejected');
+    
     onHide();
   };
 
   // End call
-  const endCall = async () => {
+  const endCall = async (logType?: 'completed' | 'missed' | 'rejected' | 'cancelled') => {
     setCallStatus('ended');
 
     // Send end signal
@@ -250,6 +297,17 @@ const VideoCall: React.FC<VideoCallProps> = ({
         type: 'call-ended',
         signal_data: {},
       });
+    }
+
+    // Log call to messages
+    if (logType) {
+      await logCallToMessages(logType);
+    } else if (callStartTimeRef.current) {
+      // Call was connected, log as completed
+      await logCallToMessages('completed');
+    } else if (callStatus === 'calling') {
+      // Caller cancelled before connection
+      await logCallToMessages('cancelled');
     }
 
     // Cleanup
@@ -307,6 +365,7 @@ const VideoCall: React.FC<VideoCallProps> = ({
           switch (signal.type) {
             case 'call-accepted':
               setCallStatus('connected');
+              callStartTimeRef.current = new Date(); // Start timer when call is accepted
               // Người gọi tạo offer sau khi được chấp nhận
               const pc = createPeerConnection(signal.caller_id);
               const offer = await pc.createOffer();
@@ -323,11 +382,14 @@ const VideoCall: React.FC<VideoCallProps> = ({
 
             case 'call-rejected':
               setCallStatus('ended');
+              // Log missed call for caller (người gọi nhận thông báo bị từ chối)
+              await logCallToMessages('missed');
               alert('Cuộc gọi bị từ chối');
               setTimeout(() => onHide(), 1000);
               break;
 
             case 'call-ended':
+              // Don't log here, let the endCall function handle it
               endCall();
               break;
 
@@ -396,11 +458,14 @@ const VideoCall: React.FC<VideoCallProps> = ({
         peerConnectionRef.current.close();
       }
       setCallStatus('idle');
+      // Reset refs for next call
+      callStartTimeRef.current = null;
+      callLoggedRef.current = false;
     }
   }, [show]);
 
   return (
-    <Modal show={show} onHide={endCall} centered size="lg" backdrop="static">
+    <Modal show={show} onHide={() => endCall()} centered size="lg" backdrop="static">
       <Modal.Header className="bg-dark text-white">
         <Modal.Title>
           {callStatus === 'ringing' && `📞 ${callerName || 'Ai đó'} đang gọi...`}
@@ -492,7 +557,7 @@ const VideoCall: React.FC<VideoCallProps> = ({
             >
               {isAudioEnabled ? '🎤' : '🔇'}
             </Button>
-            <Button variant="danger" onClick={endCall} className="rounded-circle p-3">
+            <Button variant="danger" onClick={() => endCall()} className="rounded-circle p-3">
               📵
             </Button>
           </>
