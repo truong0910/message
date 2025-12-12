@@ -1,9 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useUser } from '../contexts/UserContext';
-import type { Conversation, Message } from '../types';
-import { Button, Form, Modal, ProgressBar } from 'react-bootstrap';
+import type { Conversation, Message, MessageReaction } from '../types';
+import { Button, Form, Modal, ProgressBar, Dropdown } from 'react-bootstrap';
 import VideoCall from './VideoCall';
+import MessageReactions from './MessageReactions';
+import TypingIndicator, { useTypingStatus } from './TypingIndicator';
+import EmojiPicker from './EmojiPicker';
+import SearchMessages from './SearchMessages';
+import { CreatePoll } from './Poll';
+import GroupSettings from './GroupSettings';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -37,10 +43,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [messageMenu, setMessageMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showPoll, setShowPoll] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [reactions, setReactions] = useState<Record<number, MessageReaction[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Typing status hook
+  const { handleTyping, stopTyping } = useTypingStatus(conversation?.id || 0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -100,6 +113,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
       }
 
       setMessages(data);
+
+      // Fetch reactions for all messages
+      if (data && data.length > 0) {
+        const messageIds = data.map((m: Message) => m.id);
+        const { data: reactionsData } = await supabase
+          .from('message_reactions')
+          .select('*')
+          .in('message_id', messageIds);
+
+        if (reactionsData) {
+          const reactionsMap: Record<number, MessageReaction[]> = {};
+          reactionsData.forEach((r: MessageReaction) => {
+            if (!reactionsMap[r.message_id]) {
+              reactionsMap[r.message_id] = [];
+            }
+            reactionsMap[r.message_id].push(r);
+          });
+          setReactions(reactionsMap);
+        }
+      }
     };
 
     fetchMessages();
@@ -143,6 +176,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
     const messageContent = newMessage;
     setNewMessage('');
     setSending(true);
+    stopTyping(); // Stop typing indicator when sending
 
     const { data, error } = await supabase
       .from('messages')
@@ -467,28 +501,72 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           </small>
         </div>
 
-        {!conversation.is_group && (
-          <div className="d-flex gap-2">
+        {/* Action buttons */}
+        <div className="d-flex gap-2">
+          <Button
+            variant="light"
+            className="rounded-circle p-0 d-flex align-items-center justify-content-center"
+            style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
+            onClick={() => setShowSearch(true)}
+            title="Tìm kiếm tin nhắn"
+          >
+            🔍
+          </Button>
+          
+          {conversation.is_group && (
             <Button
               variant="light"
               className="rounded-circle p-0 d-flex align-items-center justify-content-center"
               style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
-              onClick={() => setShowVideoCall(true)}
-              title="Gọi video"
+              onClick={() => setShowGroupSettings(true)}
+              title="Cài đặt nhóm"
             >
-              📹
+              ⚙️
             </Button>
-            <Button
+          )}
+
+          {!conversation.is_group && (
+            <>
+              <Button
+                variant="light"
+                className="rounded-circle p-0 d-flex align-items-center justify-content-center"
+                style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
+                onClick={() => setShowVideoCall(true)}
+                title="Gọi video"
+              >
+                📹
+              </Button>
+              <Button
+                variant="light"
+                className="rounded-circle p-0 d-flex align-items-center justify-content-center"
+                style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
+                onClick={() => setShowVideoCall(true)}
+                title="Gọi thoại"
+              >
+                📞
+              </Button>
+            </>
+          )}
+
+          {/* More options dropdown */}
+          <Dropdown>
+            <Dropdown.Toggle
               variant="light"
               className="rounded-circle p-0 d-flex align-items-center justify-content-center"
               style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
-              onClick={() => setShowVideoCall(true)}
-              title="Gọi thoại"
             >
-              📞
-            </Button>
-          </div>
-        )}
+              ⋮
+            </Dropdown.Toggle>
+            <Dropdown.Menu align="end">
+              <Dropdown.Item onClick={() => setShowPoll(true)}>
+                📊 Tạo bình chọn
+              </Dropdown.Item>
+              <Dropdown.Item onClick={() => setShowSearch(true)}>
+                🔍 Tìm kiếm tin nhắn
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </div>
       </div>
 
       {/* Upload Progress */}
@@ -558,6 +636,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
                   
                   {/* Message bubble */}
                   <div
+                    id={`message-${msg.id}`}
                     style={{
                       padding: msg.message_type === 'image' || msg.message_type === 'video' ? '8px' : '12px 18px',
                       borderRadius: isOwn ? '20px 20px 5px 20px' : '20px 20px 20px 5px',
@@ -572,10 +651,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
                         : '0 2px 5px rgba(0,0,0,0.05)',
                       wordWrap: 'break-word',
                       fontStyle: msg.is_deleted ? 'italic' : 'normal',
+                      transition: 'background-color 0.3s ease',
                     }}
                   >
                     {renderMessageContent(msg)}
                   </div>
+                  
+                  {/* Message Reactions */}
+                  {!msg.is_deleted && (
+                    <MessageReactions
+                      messageId={msg.id}
+                      reactions={reactions[msg.id] || []}
+                      isOwn={isOwn}
+                      onReactionsChange={(newReactions) => {
+                        setReactions(prev => ({
+                          ...prev,
+                          [msg.id]: newReactions
+                        }));
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             );
@@ -612,6 +707,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           )}
         </div>
       )}
+
+      {/* Typing Indicator */}
+      {conversation && <TypingIndicator conversationId={conversation.id} />}
 
       {/* Reply Preview */}
       {replyingTo && (
@@ -683,11 +781,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
             📎
           </Button>
 
+          {/* Emoji Picker */}
+          <EmojiPicker
+            onSelect={(emoji) => setNewMessage(prev => prev + emoji)}
+          />
+
           <Form.Control
             type="text"
             ref={inputRef}
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              handleTyping(); // Trigger typing indicator
+            }}
             placeholder={replyingTo ? "Nhập tin nhắn trả lời..." : "Nhập tin nhắn..."}
             className="border-0 bg-transparent flex-grow-1"
             style={{ boxShadow: 'none' }}
@@ -751,6 +857,47 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           isIncoming={true}
           callerId={incomingCall.callerId}
           callerName={incomingCall.callerName}
+        />
+      )}
+
+      {/* Search Messages Modal */}
+      <SearchMessages
+        show={showSearch}
+        onHide={() => setShowSearch(false)}
+        conversationId={conversation.id}
+        onSelectMessage={(messageId) => {
+          setShowSearch(false);
+          // Scroll to message
+          const element = document.getElementById(`message-${messageId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.style.backgroundColor = '#fff3cd';
+            setTimeout(() => {
+              element.style.backgroundColor = '';
+            }, 2000);
+          }
+        }}
+      />
+
+      {/* Create Poll Modal */}
+      <CreatePoll
+        show={showPoll}
+        onHide={() => setShowPoll(false)}
+        conversationId={conversation.id}
+        onPollCreated={() => {
+          setShowPoll(false);
+        }}
+      />
+
+      {/* Group Settings Modal */}
+      {conversation.is_group && (
+        <GroupSettings
+          show={showGroupSettings}
+          onHide={() => setShowGroupSettings(false)}
+          conversation={conversation}
+          onUpdate={() => {
+            // Refresh conversation info
+          }}
         />
       )}
     </div>

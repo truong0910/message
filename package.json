@@ -12,7 +12,9 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.87.1",
+    "@types/lodash.debounce": "^4.0.9",
     "bootstrap": "^5.3.8",
+    "lodash.debounce": "^4.0.8",
     "react": "^19.2.0",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.0",
