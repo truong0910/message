@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useUser } from './contexts/UserContext';
 import Login from './components/Login';
@@ -7,7 +7,7 @@ import ForgotPassword from './components/ForgotPassword';
 import ChatList from './components/ChatList';
 import ChatWindow from './components/ChatWindow';
 import type { Conversation } from './types';
-import { Navbar, Nav, Button, Container, Dropdown } from 'react-bootstrap';
+import { Navbar, Nav, Container, Dropdown } from 'react-bootstrap';
 
 function App() {
   const { user, logout } = useUser();
