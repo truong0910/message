@@ -51,63 +51,60 @@ const VideoCall: React.FC<VideoCallProps> = ({
   const channelRef = useRef<any>(null);
   const remoteUserIdRef = useRef<number | null>(null);
 
-  // Fetch TURN credentials từ Metered API
+  // TURN credentials từ Metered
   const turnDomain = import.meta.env.VITE_TURN_DOMAIN;
-  const turnApiKey = import.meta.env.VITE_TURN_SECRET_KEY;
+  const turnUsername = import.meta.env.VITE_TURN_USERNAME;
+  const turnPassword = import.meta.env.VITE_TURN_PASSWORD;
 
   useEffect(() => {
-    const fetchTurnCredentials = async () => {
-      try {
-        // Sử dụng free STUN servers nếu không có TURN credentials
-        const defaultIceServers: RTCIceServer[] = [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-        ];
+    // Sử dụng free STUN servers
+    const defaultIceServers: RTCIceServer[] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+    ];
 
-        if (turnDomain && turnApiKey) {
-          const response = await fetch(
-            `https://${turnDomain}/api/v1/turn/credentials?apiKey=${turnApiKey}`
-          );
-          
-          if (response.ok) {
-            const data = await response.json();
-            // Metered trả về array các ice servers
-            if (Array.isArray(data) && data.length > 0) {
-              setIceServers({
-                iceServers: [...defaultIceServers, ...data],
-                iceCandidatePoolSize: 10,
-              });
-              console.log('TURN credentials loaded:', data);
-              return;
-            }
-          } else {
-            console.warn('TURN credentials fetch failed:', response.status);
-          }
-        }
-        
-        // Fallback to STUN only
-        setIceServers({
-          iceServers: defaultIceServers,
-          iceCandidatePoolSize: 10,
-        });
-        console.log('Using STUN servers only (no TURN)');
-      } catch (error) {
-        console.error('Error fetching TURN credentials:', error);
-        // Fallback to STUN only
-        setIceServers({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ],
-        });
-      }
-    };
+    // Thêm TURN servers nếu có credentials
+    if (turnDomain && turnUsername && turnPassword) {
+      const turnServers: RTCIceServer[] = [
+        {
+          urls: `turn:${turnDomain}:80`,
+          username: turnUsername,
+          credential: turnPassword,
+        },
+        {
+          urls: `turn:${turnDomain}:80?transport=tcp`,
+          username: turnUsername,
+          credential: turnPassword,
+        },
+        {
+          urls: `turn:${turnDomain}:443`,
+          username: turnUsername,
+          credential: turnPassword,
+        },
+        {
+          urls: `turns:${turnDomain}:443`,
+          username: turnUsername,
+          credential: turnPassword,
+        },
+      ];
 
-    fetchTurnCredentials();
-  }, [turnDomain, turnApiKey]);
+      setIceServers({
+        iceServers: [...defaultIceServers, ...turnServers],
+        iceCandidatePoolSize: 10,
+      });
+      console.log('TURN servers configured with credentials');
+    } else {
+      // Fallback to STUN only
+      setIceServers({
+        iceServers: defaultIceServers,
+        iceCandidatePoolSize: 10,
+      });
+      console.log('Using STUN servers only (no TURN credentials)');
+    }
+  }, [turnDomain, turnUsername, turnPassword]);
 
   // Get other user in conversation
   const getOtherUserId = async () => {
