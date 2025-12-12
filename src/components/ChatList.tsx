@@ -134,12 +134,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
                   username
                 )
               `)
-              .eq('conversation_id', conv.id)
-              .neq('user_id', user.id)
-              .limit(1);
+              .eq('conversation_id', conv.id);
 
-            if (members && members.length > 0 && members[0].users) {
-              displayName = (members[0].users as any).username;
+            // Find the OTHER user (not current user)
+            const otherMember = members?.find((m: any) => m.user_id !== user.id);
+            if (otherMember && otherMember.users) {
+              displayName = (otherMember.users as any).username;
             }
           }
 
@@ -192,12 +192,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
                     username
                   )
                 `)
-                .eq('conversation_id', convData.id)
-                .neq('user_id', user.id)
-                .limit(1);
+                .eq('conversation_id', convData.id);
 
-              if (members && members.length > 0 && members[0].users) {
-                displayName = (members[0].users as any).username;
+              // Find the OTHER user (not current user)
+              const otherMember = members?.find((m: any) => m.user_id !== user.id);
+              if (otherMember && otherMember.users) {
+                displayName = (otherMember.users as any).username;
               }
             }
 
