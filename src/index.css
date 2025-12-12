@@ -1,0 +1,185 @@
+@import 'bootstrap/dist/css/bootstrap.min.css';
+:root {
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --chat-bg: #f8f9fa;
+  --message-sent: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --message-received: #ffffff;
+  --sidebar-bg: #ffffff;
+  --header-height: 60px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--chat-bg);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* Auth Pages */
+.auth-container {
+  min-height: 100vh;
+  background: var(--primary-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.auth-card {
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.auth-logo-icon {
+  width: 70px;
+  height: 70px;
+  background: var(--primary-gradient);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 15px;
+  font-size: 2rem;
+}
+
+.auth-logo h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.auth-logo p {
+  color: #6c757d;
+  margin: 5px 0 0;
+}
+
+.auth-form .form-control {
+  border-radius: 12px;
+  padding: 12px 18px;
+  border: 2px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.auth-form .form-control:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--primary-gradient);
+  border: none;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.auth-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+}
+
+.auth-links {
+  text-align: center;
+  margin-top: 25px;
+}
+
+.auth-links a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+/* Message Styles */
+.message-bubble {
+  max-width: 70%;
+  padding: 12px 18px;
+  border-radius: 20px;
+  position: relative;
+  word-wrap: break-word;
+}
+
+.message-bubble.sent {
+  background: var(--message-sent);
+  color: white;
+  border-bottom-right-radius: 5px;
+  margin-left: auto;
+}
+
+.message-bubble.received {
+  background: white;
+  color: #333;
+  border-bottom-left-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .chat-sidebar {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    z-index: 100;
+    transition: transform 0.3s ease;
+  }
+
+  .chat-sidebar.hidden {
+    transform: translateX(-100%);
+  }
+
+  .message-bubble {
+    max-width: 85%;
+  }
+
+  .auth-card {
+    padding: 30px 25px;
+    margin: 10px;
+  }
+}
+
+@media (max-width: 576px) {
+  .navbar-brand {
+    font-size: 1.1rem !important;
+  }
+}
