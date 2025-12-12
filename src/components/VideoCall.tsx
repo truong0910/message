@@ -49,6 +49,7 @@ const VideoCall: React.FC<VideoCallProps> = ({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
+  const remoteUserIdRef = useRef<number | null>(null);
 
   // Fetch TURN credentials từ Metered API
   const turnDomain = import.meta.env.VITE_TURN_DOMAIN;
@@ -110,15 +111,17 @@ const VideoCall: React.FC<VideoCallProps> = ({
   };
 
   // Create peer connection
-  const createPeerConnection = () => {
+  const createPeerConnection = (targetUserId?: number) => {
     const pc = new RTCPeerConnection(iceServers);
+    const targetId = targetUserId || remoteUserId;
 
     pc.onicecandidate = async (event) => {
-      if (event.candidate && remoteUserId) {
+      console.log('ICE candidate:', event.candidate);
+      if (event.candidate && targetId) {
         await supabase.from('call_signals').insert({
           conversation_id: conversationId,
           caller_id: user?.id,
-          callee_id: remoteUserId,
+          callee_id: targetId,
           type: 'ice-candidate',
           signal_data: event.candidate,
         });
@@ -126,12 +129,18 @@ const VideoCall: React.FC<VideoCallProps> = ({
     };
 
     pc.ontrack = (event) => {
-      if (remoteVideoRef.current) {
+      console.log('Received remote track:', event.streams[0]);
+      if (remoteVideoRef.current && event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0];
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', pc.iceConnectionState);
+    };
+
     pc.onconnectionstatechange = () => {
+      console.log('Connection state:', pc.connectionState);
       if (pc.connectionState === 'connected') {
         setCallStatus('connected');
       } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
@@ -158,6 +167,7 @@ const VideoCall: React.FC<VideoCallProps> = ({
       return;
     }
     setRemoteUserId(otherUserId);
+    remoteUserIdRef.current = otherUserId;
     setCallStatus('calling');
 
     const stream = await initializeMedia();
@@ -177,31 +187,22 @@ const VideoCall: React.FC<VideoCallProps> = ({
   const acceptCall = async () => {
     if (!callerId) return;
     setRemoteUserId(callerId);
+    remoteUserIdRef.current = callerId;
     setCallStatus('connected');
 
     const stream = await initializeMedia();
     if (!stream) return;
 
-    // Send acceptance
+    // Tạo peer connection trước với callerId
+    createPeerConnection(callerId);
+
+    // Send acceptance - người gọi sẽ gửi offer
     await supabase.from('call_signals').insert({
       conversation_id: conversationId,
       caller_id: user?.id,
       callee_id: callerId,
       type: 'call-accepted',
       signal_data: {},
-    });
-
-    // Create peer connection and answer
-    const pc = createPeerConnection();
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    await supabase.from('call_signals').insert({
-      conversation_id: conversationId,
-      caller_id: user?.id,
-      callee_id: callerId,
-      type: 'offer',
-      signal_data: offer,
     });
   };
 
@@ -285,14 +286,23 @@ const VideoCall: React.FC<VideoCallProps> = ({
         async (payload) => {
           const signal = payload.new as CallSignal;
           if (signal.conversation_id !== conversationId) return;
+          console.log('Received signal:', signal.type, signal);
 
           switch (signal.type) {
             case 'call-accepted':
               setCallStatus('connected');
-              const stream = await initializeMedia();
-              if (stream) {
-                createPeerConnection();
-              }
+              // Người gọi tạo offer sau khi được chấp nhận
+              const pc = createPeerConnection(signal.caller_id);
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              
+              await supabase.from('call_signals').insert({
+                conversation_id: conversationId,
+                caller_id: user.id,
+                callee_id: signal.caller_id,
+                type: 'offer',
+                signal_data: offer,
+              });
               break;
 
             case 'call-rejected':
