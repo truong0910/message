@@ -56,7 +56,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   // Typing status hook
   const { handleTyping, stopTyping } = useTypingStatus(conversation?.id || 0);
 
-  const scrollToBottom = (instant = false) => {
+  const scrollToBottom = () => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
@@ -138,7 +138,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
       }
       
       // Scroll to bottom after everything is loaded
-      setTimeout(() => scrollToBottom(true), 200);
+      setTimeout(() => scrollToBottom(), 200);
     };
 
     fetchMessages();
