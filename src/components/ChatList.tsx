@@ -186,36 +186,32 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
             // For direct conversations, get the other user's name
             let displayName = convData.name;
             if (!convData.is_group) {
-              // Retry fetching members a few times in case of timing issues
-              let members = null;
-              for (let i = 0; i < 3; i++) {
-                const { data } = await supabase
-                  .from('conversation_members')
-                  .select(`
-                    user_id,
-                    users (
-                      id,
-                      username
-                    )
-                  `)
-                  .eq('conversation_id', convData.id);
-                
-                members = data;
-                console.log(`Attempt ${i + 1} - Members:`, members?.map((m: any) => ({ user_id: m.user_id, username: m.users?.username })));
-                
-                // If we have at least 2 members, break
-                if (members && members.length >= 2) break;
-                
-                // Wait before retry
-                await new Promise(resolve => setTimeout(resolve, 300));
-              }
-
-              // Find the OTHER user (not current user)
-              const otherMember = members?.find((m: any) => Number(m.user_id) !== Number(user.id));
-              console.log('Other member found:', otherMember);
+              // Try to get all members - query without join first
+              const { data: memberIds, error: memberError } = await supabase
+                .from('conversation_members')
+                .select('user_id')
+                .eq('conversation_id', convData.id);
               
-              if (otherMember && otherMember.users) {
-                displayName = (otherMember.users as any).username;
+              console.log('Member IDs:', memberIds, 'Error:', memberError);
+              
+              if (memberIds && memberIds.length > 0) {
+                // Find the other user's ID
+                const otherUserId = memberIds.find((m: any) => Number(m.user_id) !== Number(user.id))?.user_id;
+                console.log('Other user ID:', otherUserId);
+                
+                if (otherUserId) {
+                  // Fetch other user's info separately
+                  const { data: otherUser } = await supabase
+                    .from('users')
+                    .select('username')
+                    .eq('id', otherUserId)
+                    .single();
+                  
+                  console.log('Other user:', otherUser);
+                  if (otherUser) {
+                    displayName = otherUser.username;
+                  }
+                }
               }
             }
 
