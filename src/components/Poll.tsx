@@ -203,7 +203,7 @@ export const PollDisplay: React.FC<PollDisplayProps> = ({ pollId }) => {
     setLoading(true);
     
     // Fetch poll with options
-    const { data: pollData } = await supabase
+    const { data: pollData, error } = await supabase
       .from('polls')
       .select(`
         *,
@@ -212,8 +212,14 @@ export const PollDisplay: React.FC<PollDisplayProps> = ({ pollId }) => {
       .eq('id', pollId)
       .single();
 
+    console.log('Poll data:', pollData, 'Error:', error);
+
     if (pollData) {
-      setPoll(pollData);
+      // Map poll_options to options
+      setPoll({
+        ...pollData,
+        options: pollData.poll_options || []
+      });
     }
 
     // Fetch votes
