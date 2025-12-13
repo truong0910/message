@@ -172,6 +172,9 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
           console.log('New conversation member:', payload);
           const newMember = payload.new as { conversation_id: number; user_id: number };
           
+          // Small delay to ensure both members are inserted
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           // Fetch the conversation details
           const { data: convData } = await supabase
             .from('conversations')
@@ -183,21 +186,31 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
             // For direct conversations, get the other user's name
             let displayName = convData.name;
             if (!convData.is_group) {
-              const { data: members } = await supabase
-                .from('conversation_members')
-                .select(`
-                  user_id,
-                  users (
-                    id,
-                    username
-                  )
-                `)
-                .eq('conversation_id', convData.id);
+              // Retry fetching members a few times in case of timing issues
+              let members = null;
+              for (let i = 0; i < 3; i++) {
+                const { data } = await supabase
+                  .from('conversation_members')
+                  .select(`
+                    user_id,
+                    users (
+                      id,
+                      username
+                    )
+                  `)
+                  .eq('conversation_id', convData.id);
+                
+                members = data;
+                console.log(`Attempt ${i + 1} - Members:`, members?.map((m: any) => ({ user_id: m.user_id, username: m.users?.username })));
+                
+                // If we have at least 2 members, break
+                if (members && members.length >= 2) break;
+                
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 300));
+              }
 
-              console.log('Current user id:', user.id, 'type:', typeof user.id);
-              console.log('Members:', members?.map((m: any) => ({ user_id: m.user_id, type: typeof m.user_id, username: m.users?.username })));
-
-              // Find the OTHER user (not current user) - ensure same type comparison
+              // Find the OTHER user (not current user)
               const otherMember = members?.find((m: any) => Number(m.user_id) !== Number(user.id));
               console.log('Other member found:', otherMember);
               
