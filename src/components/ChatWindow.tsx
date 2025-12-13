@@ -148,14 +148,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           table: 'messages',
           filter: `conversation_id=eq.${conversation.id}`,
         },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          setMessages((prev) => {
-            if (prev.some(m => m.id === newMsg.id)) {
-              return prev;
-            }
-            return [...prev, newMsg];
-          });
+        async (payload) => {
+          const newMsgId = (payload.new as any).id;
+          
+          // Fetch full message data to ensure we have poll_id and other fields
+          const { data: fullMsg } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('id', newMsgId)
+            .single();
+          
+          if (fullMsg) {
+            setMessages((prev) => {
+              if (prev.some(m => m.id === fullMsg.id)) {
+                return prev;
+              }
+              return [...prev, fullMsg];
+            });
+          }
         }
       )
       .subscribe();
