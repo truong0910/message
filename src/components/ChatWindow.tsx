@@ -55,8 +55,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   // Typing status hook
   const { handleTyping, stopTyping } = useTypingStatus(conversation?.id || 0);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (instant = false) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
   };
 
   // Listen for incoming calls
@@ -113,6 +113,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
       }
 
       setMessages(data);
+      
+      // Scroll to bottom after loading messages
+      setTimeout(() => scrollToBottom(true), 100);
 
       // Fetch reactions for all messages
       if (data && data.length > 0) {
