@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useUser } from '../contexts/UserContext';
 import type { Conversation, Message } from '../types';
-import { ListGroup, Spinner, Button } from 'react-bootstrap';
+import { ListGroup, Spinner, Button, Dropdown } from 'react-bootstrap';
 import UserSearch from './UserSearch';
+import CreateGroup from './CreateGroup';
 
 interface ChatListProps {
   onSelectConversation: (conversation: Conversation) => void;
@@ -20,6 +21,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
   const [conversations, setConversations] = useState<ConversationWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUserSearch, setShowUserSearch] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
 
   const handleDeleteConversation = async (e: React.MouseEvent, convId: number) => {
@@ -289,22 +291,32 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
               }}
             />
           </div>
-          <Button
-            onClick={() => setShowUserSearch(true)}
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              border: 'none',
-              borderRadius: '50%',
-              width: '40px',
-              height: '40px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0
-            }}
-          >
-            ✏️
-          </Button>
+          {/* New conversation dropdown */}
+          <Dropdown>
+            <Dropdown.Toggle
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0
+              }}
+            >
+              ✏️
+            </Dropdown.Toggle>
+            <Dropdown.Menu align="end">
+              <Dropdown.Item onClick={() => setShowUserSearch(true)}>
+                💬 Chat riêng
+              </Dropdown.Item>
+              <Dropdown.Item onClick={() => setShowCreateGroup(true)}>
+                👥 Tạo nhóm
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
         </div>
       </div>
 
@@ -315,17 +327,30 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
             <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>💬</div>
             <h6 style={{ color: '#667eea' }}>Chưa có cuộc trò chuyện</h6>
             <p className="text-muted small mb-3">Bắt đầu trò chuyện với bạn bè ngay!</p>
-            <Button
-              onClick={() => setShowUserSearch(true)}
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: 'none',
-                borderRadius: '20px',
-                padding: '8px 20px'
-              }}
-            >
-              + Tạo cuộc trò chuyện
-            </Button>
+            <div className="d-flex flex-column gap-2">
+              <Button
+                onClick={() => setShowUserSearch(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '8px 20px'
+                }}
+              >
+                💬 Chat riêng
+              </Button>
+              <Button
+                onClick={() => setShowCreateGroup(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '8px 20px'
+                }}
+              >
+                👥 Tạo nhóm
+              </Button>
+            </div>
           </div>
         ) : (
           <ListGroup variant="flush">
@@ -431,6 +456,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
         show={showUserSearch}
         onHide={() => setShowUserSearch(false)}
         onConversationCreated={handleConversationCreated}
+      />
+
+      <CreateGroup
+        show={showCreateGroup}
+        onHide={() => setShowCreateGroup(false)}
+        onGroupCreated={handleConversationCreated}
       />
     </div>
   );

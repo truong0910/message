@@ -10,6 +10,7 @@ import EmojiPicker from './EmojiPicker';
 import SearchMessages from './SearchMessages';
 import { CreatePoll, PollDisplay } from './Poll';
 import GroupSettings from './GroupSettings';
+import PinnedMessages from './PinnedMessages';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -344,6 +345,68 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
       );
     }
     setMessageMenu(null);
+  };
+
+  // Pin message handler
+  const handlePinMessage = async (msgId: number) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ 
+        is_pinned: true, 
+        pinned_at: new Date().toISOString(),
+        pinned_by: user.id
+      })
+      .eq('id', msgId);
+
+    if (error) {
+      console.error('Error pinning message:', error);
+      alert('Không thể ghim tin nhắn');
+    } else {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, is_pinned: true, pinned_at: new Date().toISOString(), pinned_by: user.id } : m
+        )
+      );
+    }
+    setMessageMenu(null);
+  };
+
+  // Unpin message handler
+  const handleUnpinMessage = async (msgId: number) => {
+    const { error } = await supabase
+      .from('messages')
+      .update({ 
+        is_pinned: false, 
+        pinned_at: null,
+        pinned_by: null
+      })
+      .eq('id', msgId);
+
+    if (error) {
+      console.error('Error unpinning message:', error);
+      alert('Không thể bỏ ghim tin nhắn');
+    } else {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, is_pinned: false, pinned_at: undefined, pinned_by: undefined } : m
+        )
+      );
+    }
+    setMessageMenu(null);
+  };
+
+  // Scroll to specific message
+  const scrollToMessage = (messageId: number) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.style.backgroundColor = '#fff3cd';
+      setTimeout(() => {
+        element.style.backgroundColor = '';
+      }, 2000);
+    }
   };
 
   // Reply to message handler
@@ -694,6 +757,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
         </div>
       </div>
 
+      {/* Pinned Messages */}
+      <PinnedMessages
+        conversationId={conversation.id}
+        onScrollToMessage={scrollToMessage}
+      />
+
       {/* Upload Progress */}
       {uploading && (
         <div className="px-3 py-2 bg-light border-bottom">
@@ -775,6 +844,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
                     </div>
                   )}
                   
+                  {/* Pinned indicator */}
+                  {msg.is_pinned && (
+                    <div 
+                      className="d-flex align-items-center gap-1 mb-1"
+                      style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#856404',
+                        justifyContent: isOwn ? 'flex-end' : 'flex-start'
+                      }}
+                    >
+                      <span>📌</span>
+                      <span>Đã ghim</span>
+                    </div>
+                  )}
+                  
                   {/* Message bubble */}
                   <div
                     id={`message-${msg.id}`}
@@ -793,6 +877,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
                       wordWrap: 'break-word',
                       fontStyle: msg.is_deleted ? 'italic' : 'normal',
                       transition: 'background-color 0.3s ease',
+                      border: msg.is_pinned ? '2px solid #ffc107' : 'none',
                     }}
                   >
                     {renderMessageContent(msg)}
@@ -838,6 +923,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           >
             <span className="me-2">↩️</span> Trả lời
           </button>
+          {/* Pin/Unpin button */}
+          {!messageMenu.msg.is_deleted && (
+            messageMenu.msg.is_pinned ? (
+              <button
+                className="dropdown-item d-flex align-items-center px-3 py-2"
+                onClick={() => handleUnpinMessage(messageMenu.msg.id)}
+              >
+                <span className="me-2">📌</span> Bỏ ghim
+              </button>
+            ) : (
+              <button
+                className="dropdown-item d-flex align-items-center px-3 py-2"
+                onClick={() => handlePinMessage(messageMenu.msg.id)}
+              >
+                <span className="me-2">📌</span> Ghim tin nhắn
+              </button>
+            )
+          )}
           {messageMenu.msg.sender_id === user?.id && !messageMenu.msg.is_deleted && (
             <button
               className="dropdown-item d-flex align-items-center px-3 py-2 text-danger"
