@@ -34,6 +34,7 @@ export interface Message {
   file_url?: string;
   file_name?: string;
   file_size?: number;
+  poll_id?: number;
   reply_to_id?: number;
   reply_to?: Message;
   is_deleted?: boolean;

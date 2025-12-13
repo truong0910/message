@@ -8,7 +8,7 @@ import MessageReactions from './MessageReactions';
 import TypingIndicator, { useTypingStatus } from './TypingIndicator';
 import EmojiPicker from './EmojiPicker';
 import SearchMessages from './SearchMessages';
-import { CreatePoll } from './Poll';
+import { CreatePoll, PollDisplay } from './Poll';
 import GroupSettings from './GroupSettings';
 
 interface ChatWindowProps {
@@ -420,6 +420,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
                 <small style={{ opacity: 0.7 }}>{formatFileSize(msg.file_size || 0)}</small>
               </div>
             </a>
+            <small style={{ opacity: 0.7, fontSize: '0.75rem', display: 'block', marginTop: '4px' }}>
+              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </small>
+          </div>
+        );
+
+      case 'poll':
+        return (
+          <div>
+            {msg.poll_id ? (
+              <PollDisplay pollId={msg.poll_id} />
+            ) : (
+              <p className="mb-1" style={{ lineHeight: '1.4' }}>{msg.content}</p>
+            )}
             <small style={{ opacity: 0.7, fontSize: '0.75rem', display: 'block', marginTop: '4px' }}>
               {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </small>

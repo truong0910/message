@@ -89,6 +89,7 @@ export const CreatePoll: React.FC<CreatePollProps> = ({
         sender_id: user.id,
         content: `📊 ${question}`,
         message_type: 'poll',
+        poll_id: pollData.id,
       });
 
       onPollCreated?.({ ...pollData, options: optionsData || [] });
