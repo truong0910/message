@@ -319,8 +319,8 @@ export const PollDisplay: React.FC<PollDisplayProps> = ({ pollId }) => {
   const userVotes = votes.filter(v => v.user_id === user?.id).map(v => v.option_id);
 
   return (
-    <div className="poll-container p-3 bg-white rounded shadow-sm">
-      <div className="fw-bold mb-3 d-flex align-items-center gap-2">
+    <div className="poll-container p-3 rounded shadow-sm" style={{ background: '#f8f9fa', color: '#333' }}>
+      <div className="fw-bold mb-3 d-flex align-items-center gap-2" style={{ color: '#333' }}>
         📊 {poll.question}
         {poll.is_anonymous && <Badge bg="secondary">Ẩn danh</Badge>}
         {poll.is_multiple_choice && <Badge bg="info">Nhiều lựa chọn</Badge>}
@@ -334,15 +334,15 @@ export const PollDisplay: React.FC<PollDisplayProps> = ({ pollId }) => {
         return (
           <div
             key={option.id}
-            className={`poll-option mb-2 p-2 rounded border ${isSelected ? 'border-primary' : ''}`}
+            className={`poll-option mb-2 p-2 rounded border ${isSelected ? 'border-primary bg-primary bg-opacity-10' : 'bg-white'}`}
             style={{ cursor: 'pointer' }}
             onClick={() => !voting && handleVote(option.id)}
           >
             <div className="d-flex justify-content-between mb-1">
-              <span className={isSelected ? 'fw-bold text-primary' : ''}>
+              <span className={isSelected ? 'fw-bold text-primary' : ''} style={{ color: isSelected ? undefined : '#333' }}>
                 {isSelected && '✓ '}{option.option_text}
               </span>
-              <span className="text-muted small">{optionVotes} phiếu ({percentage}%)</span>
+              <span className="small" style={{ color: '#666' }}>{optionVotes} phiếu ({percentage}%)</span>
             </div>
             <ProgressBar
               now={percentage}
@@ -353,7 +353,7 @@ export const PollDisplay: React.FC<PollDisplayProps> = ({ pollId }) => {
         );
       })}
 
-      <div className="text-muted small mt-2">
+      <div className="small mt-2" style={{ color: '#666' }}>
         Tổng: {totalVotes} phiếu bầu
       </div>
     </div>
