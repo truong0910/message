@@ -197,6 +197,35 @@ export const PollDisplay: React.FC<PollDisplayProps> = ({ pollId }) => {
 
   useEffect(() => {
     fetchPoll();
+
+    // Subscribe to realtime votes
+    const channel = supabase
+      .channel(`poll_votes:${pollId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'poll_votes',
+          filter: `poll_id=eq.${pollId}`,
+        },
+        async () => {
+          // Refetch votes when there's a change
+          const { data: votesData } = await supabase
+            .from('poll_votes')
+            .select('*')
+            .eq('poll_id', pollId);
+
+          if (votesData) {
+            setVotes(votesData);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [pollId]);
 
   const fetchPoll = async () => {
