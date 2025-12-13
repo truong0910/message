@@ -136,8 +136,8 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
               `)
               .eq('conversation_id', conv.id);
 
-            // Find the OTHER user (not current user)
-            const otherMember = members?.find((m: any) => m.user_id !== user.id);
+            // Find the OTHER user (not current user) - ensure same type comparison
+            const otherMember = members?.find((m: any) => Number(m.user_id) !== Number(user.id));
             if (otherMember && otherMember.users) {
               displayName = (otherMember.users as any).username;
             }
@@ -194,8 +194,13 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation, selectedConve
                 `)
                 .eq('conversation_id', convData.id);
 
-              // Find the OTHER user (not current user)
-              const otherMember = members?.find((m: any) => m.user_id !== user.id);
+              console.log('Current user id:', user.id, 'type:', typeof user.id);
+              console.log('Members:', members?.map((m: any) => ({ user_id: m.user_id, type: typeof m.user_id, username: m.users?.username })));
+
+              // Find the OTHER user (not current user) - ensure same type comparison
+              const otherMember = members?.find((m: any) => Number(m.user_id) !== Number(user.id));
+              console.log('Other member found:', otherMember);
+              
               if (otherMember && otherMember.users) {
                 displayName = (otherMember.users as any).username;
               }
