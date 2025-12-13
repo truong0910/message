@@ -47,11 +47,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   const [showPoll, setShowPoll] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [reactions, setReactions] = useState<Record<number, MessageReaction[]>>({});
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const MESSAGES_PER_PAGE = 30;
 
   // Typing status hook
   const { handleTyping, stopTyping } = useTypingStatus(conversation?.id || 0);
@@ -98,28 +102,119 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   useEffect(() => {
     setMessages([]);
     setNewMessage('');
+    setHasMoreMessages(true);
   }, [conversation?.id, user?.id]);
+
+  // Load older messages when scrolling to top
+  const loadOlderMessages = async () => {
+    if (!conversation || !user || loadingOlder || !hasMoreMessages || messages.length === 0) return;
+    
+    setLoadingOlder(true);
+    const oldestMessage = messages[0];
+    
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversation.id)
+      .lt('created_at', oldestMessage.created_at)
+      .order('created_at', { ascending: false })
+      .limit(MESSAGES_PER_PAGE);
+
+    if (error) {
+      console.error('Error loading older messages:', error);
+      setLoadingOlder(false);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      // Reverse to get correct order (oldest first)
+      const olderMessages = data.reverse();
+      
+      // Save current scroll position
+      const container = messagesContainerRef.current;
+      const previousScrollHeight = container?.scrollHeight || 0;
+      
+      setMessages(prev => [...olderMessages, ...prev]);
+      
+      // Restore scroll position after adding messages
+      setTimeout(() => {
+        if (container) {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop = newScrollHeight - previousScrollHeight;
+        }
+      }, 50);
+      
+      // Fetch reactions for older messages
+      const messageIds = olderMessages.map((m: Message) => m.id);
+      const { data: reactionsData } = await supabase
+        .from('message_reactions')
+        .select('*')
+        .in('message_id', messageIds);
+
+      if (reactionsData) {
+        setReactions(prev => {
+          const newReactions = { ...prev };
+          reactionsData.forEach((r: MessageReaction) => {
+            if (!newReactions[r.message_id]) {
+              newReactions[r.message_id] = [];
+            }
+            newReactions[r.message_id].push(r);
+          });
+          return newReactions;
+        });
+      }
+      
+      if (data.length < MESSAGES_PER_PAGE) {
+        setHasMoreMessages(false);
+      }
+    } else {
+      setHasMoreMessages(false);
+    }
+    
+    setLoadingOlder(false);
+  };
+
+  // Handle scroll event
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Load more when scrolled near top (within 100px)
+      if (container.scrollTop < 100 && !loadingOlder && hasMoreMessages) {
+        loadOlderMessages();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [messages, loadingOlder, hasMoreMessages, conversation?.id]);
 
   useEffect(() => {
     if (!conversation || !user) return;
 
     const fetchMessages = async () => {
+      // Fetch newest messages first (limited)
       const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('conversation_id', conversation.id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(MESSAGES_PER_PAGE);
 
       if (error) {
         console.error('Error fetching messages:', error);
         return;
       }
 
-      setMessages(data);
+      // Reverse to display in correct order (oldest first)
+      const messagesInOrder = data ? data.reverse() : [];
+      setMessages(messagesInOrder);
+      setHasMoreMessages(data ? data.length >= MESSAGES_PER_PAGE : false);
 
       // Fetch reactions for all messages
-      if (data && data.length > 0) {
-        const messageIds = data.map((m: Message) => m.id);
+      if (messagesInOrder.length > 0) {
+        const messageIds = messagesInOrder.map((m: Message) => m.id);
         const { data: reactionsData } = await supabase
           .from('message_reactions')
           .select('*')
@@ -616,6 +711,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
         className="flex-grow-1 overflow-auto p-3"
         style={{ background: '#f8f9fa' }}
       >
+        {/* Loading older messages indicator */}
+        {loadingOlder && (
+          <div className="text-center py-3">
+            <div className="spinner-border spinner-border-sm text-primary" role="status" />
+            <span className="ms-2 text-muted small">Đang tải tin nhắn cũ...</span>
+          </div>
+        )}
+        
+        {/* No more messages indicator */}
+        {!hasMoreMessages && messages.length > 0 && (
+          <div className="text-center py-2 mb-3">
+            <small className="text-muted">📜 Đã hiển thị tất cả tin nhắn</small>
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <div className="text-center text-muted py-5">
             <div style={{ fontSize: '3rem', marginBottom: '10px' }}>👋</div>
