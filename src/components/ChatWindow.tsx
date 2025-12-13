@@ -48,6 +48,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [reactions, setReactions] = useState<Record<number, MessageReaction[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,7 +57,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   const { handleTyping, stopTyping } = useTypingStatus(conversation?.id || 0);
 
   const scrollToBottom = (instant = false) => {
-    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
   // Listen for incoming calls
@@ -113,9 +116,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
       }
 
       setMessages(data);
-      
-      // Scroll to bottom after loading messages
-      setTimeout(() => scrollToBottom(true), 100);
 
       // Fetch reactions for all messages
       if (data && data.length > 0) {
@@ -136,6 +136,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           setReactions(reactionsMap);
         }
       }
+      
+      // Scroll to bottom after everything is loaded
+      setTimeout(() => scrollToBottom(true), 200);
     };
 
     fetchMessages();
@@ -609,6 +612,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
 
       {/* Messages Area */}
       <div 
+        ref={messagesContainerRef}
         className="flex-grow-1 overflow-auto p-3"
         style={{ background: '#f8f9fa' }}
       >
