@@ -12,11 +12,18 @@ interface GroupSettingsProps {
   onUpdate?: () => void;
 }
 
+interface MemberUser {
+  id: number;
+  username: string;
+  is_online?: boolean;
+  last_seen?: string;
+}
+
 interface Member {
   user_id: number;
   role: string;
   joined_at: string;
-  user: User;
+  user: MemberUser;
 }
 
 const GroupSettings: React.FC<GroupSettingsProps> = ({
@@ -43,33 +50,63 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
 
   const fetchMembers = async () => {
     setLoading(true);
-    const { data } = await supabase
+    
+    // First fetch conversation members
+    const { data: membersData, error: membersError } = await supabase
       .from('conversation_members')
-      .select(`
-        user_id,
-        role,
-        joined_at,
-        users (
-          id,
-          username,
-          is_online,
-          last_seen
-        )
-      `)
+      .select('user_id, role, joined_at')
       .eq('conversation_id', conversation.id);
 
-    if (data) {
-      const membersList = data.map((item: any) => ({
-        user_id: item.user_id,
-        role: item.role || 'member',
-        joined_at: item.joined_at,
-        user: item.users,
-      }));
+    if (membersError) {
+      console.error('Error fetching members:', membersError);
+      setLoading(false);
+      return;
+    }
+
+    if (membersData && membersData.length > 0) {
+      // Get all user IDs
+      const userIds = membersData.map((m: any) => m.user_id);
+      
+      // Fetch user details separately
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, is_online, last_seen')
+        .in('id', userIds);
+
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+        setLoading(false);
+        return;
+      }
+
+      // Combine members with user data
+      const membersList: Member[] = membersData.map((member: any) => {
+        const userData = usersData?.find((u: any) => u.id === member.user_id);
+        return {
+          user_id: member.user_id,
+          role: member.role || 'member',
+          joined_at: member.joined_at,
+          user: userData || { id: member.user_id, username: 'Unknown', is_online: false },
+        };
+      }).filter((m) => m.user);
+      
       setMembers(membersList);
       
-      // Check if current user is admin
-      const currentMember = membersList.find(m => m.user_id === user?.id);
-      setIsAdmin(currentMember?.role === 'admin');
+      // Check if current user is admin (by role or if they are the first member - creator)
+      const currentMember = membersList.find((m) => m.user_id === user?.id);
+      const isCreator = membersList.length > 0 && membersList[0]?.user_id === user?.id;
+      setIsAdmin(currentMember?.role === 'admin' || isCreator);
+      
+      // If current user is creator but role is not admin, update it
+      if (isCreator && currentMember && currentMember.role !== 'admin') {
+        await supabase
+          .from('conversation_members')
+          .update({ role: 'admin' })
+          .eq('conversation_id', conversation.id)
+          .eq('user_id', user?.id);
+      }
+    } else {
+      setMembers([]);
     }
     setLoading(false);
   };
@@ -182,13 +219,13 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered>
+    <Modal show={show} onHide={onHide} centered size="lg">
       <Modal.Header 
         closeButton 
         style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
       >
         <Modal.Title className="text-white">
-          ⚙️ Cài đặt nhóm
+          ℹ️ Thông tin nhóm
         </Modal.Title>
       </Modal.Header>
       <Modal.Body>
@@ -198,6 +235,14 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
           </div>
         ) : (
           <>
+            {/* Admin Badge */}
+            {isAdmin && (
+              <div className="alert alert-info d-flex align-items-center mb-3">
+                <span className="me-2">👑</span>
+                <span>Bạn là <strong>Quản trị viên</strong> của nhóm này. Bạn có thể sửa tên nhóm, thêm/xóa thành viên.</span>
+              </div>
+            )}
+
             {/* Group Name */}
             <Form.Group className="mb-4">
               <Form.Label className="fw-bold">Tên nhóm</Form.Label>
@@ -207,36 +252,43 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
                   disabled={!isAdmin}
+                  placeholder={isAdmin ? "Nhập tên nhóm..." : ""}
                 />
                 {isAdmin && (
                   <Button
                     variant="primary"
                     onClick={handleUpdateGroupName}
+                    disabled={!groupName.trim()}
                     style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}
                   >
-                    Lưu
+                    💾 Lưu
                   </Button>
                 )}
               </div>
+              {!isAdmin && (
+                <Form.Text className="text-muted">
+                  Chỉ quản trị viên mới có thể sửa tên nhóm
+                </Form.Text>
+              )}
             </Form.Group>
 
             {/* Members List */}
             <div className="mb-3">
               <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Thành viên ({members.length})</span>
+                <span className="fw-bold">👥 Thành viên ({members.length})</span>
                 {isAdmin && (
                   <Button
                     variant="outline-primary"
                     size="sm"
                     onClick={() => setShowAddMember(!showAddMember)}
                   >
-                    + Thêm
+                    {showAddMember ? '✕ Đóng' : '+ Thêm thành viên'}
                   </Button>
                 )}
               </div>
 
               {/* Add Member Search */}
-              {showAddMember && (
+              {showAddMember && isAdmin && (
                 <div className="mb-3 p-3 bg-light rounded">
                   <Form.Control
                     type="text"
@@ -260,7 +312,7 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
                         variant="success"
                         onClick={() => handleAddMember(u)}
                       >
-                        Thêm
+                        + Thêm
                       </Button>
                     </div>
                   ))}
@@ -277,9 +329,11 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
                       <div
                         className="rounded-circle d-flex align-items-center justify-content-center"
                         style={{
-                          width: '36px',
-                          height: '36px',
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          width: '40px',
+                          height: '40px',
+                          background: member.role === 'admin' 
+                            ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+                            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                           color: 'white',
                           fontWeight: 'bold',
                         }}
@@ -288,12 +342,12 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
                       </div>
                       <div>
                         <div className="d-flex align-items-center gap-2">
-                          <span>{member.user.username}</span>
+                          <span className="fw-semibold">{member.user.username}</span>
                           {member.role === 'admin' && (
-                            <Badge bg="warning" text="dark">Admin</Badge>
+                            <Badge bg="warning" text="dark">👑 Admin</Badge>
                           )}
                           {member.user_id === user?.id && (
-                            <Badge bg="secondary">Bạn</Badge>
+                            <Badge bg="info">Bạn</Badge>
                           )}
                         </div>
                         <OnlineStatusBadge
@@ -306,22 +360,22 @@ const GroupSettings: React.FC<GroupSettingsProps> = ({
                     </div>
                     
                     {isAdmin && member.user_id !== user?.id && (
-                      <div className="d-flex gap-1">
+                      <div className="d-flex gap-2">
                         <Button
-                          variant="outline-warning"
+                          variant={member.role === 'admin' ? 'warning' : 'outline-warning'}
                           size="sm"
                           onClick={() => handleToggleAdmin(member.user_id, member.role)}
-                          title={member.role === 'admin' ? 'Hủy Admin' : 'Cấp Admin'}
+                          title={member.role === 'admin' ? 'Hủy quyền Admin' : 'Cấp quyền Admin'}
                         >
-                          👑
+                          👑 {member.role === 'admin' ? 'Hủy Admin' : 'Cấp Admin'}
                         </Button>
                         <Button
-                          variant="outline-danger"
+                          variant="danger"
                           size="sm"
                           onClick={() => handleRemoveMember(member.user_id)}
-                          title="Xóa thành viên"
+                          title="Xóa khỏi nhóm"
                         >
-                          🗑️
+                          🚫 Xóa
                         </Button>
                       </div>
                     )}

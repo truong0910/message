@@ -682,10 +682,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           {(conversation.name || 'C')[0].toUpperCase()}
         </div>
         
-        <div className="flex-grow-1 min-width-0">
+        <div 
+          className="flex-grow-1 min-width-0"
+          style={{ cursor: conversation.is_group ? 'pointer' : 'default' }}
+          onClick={() => conversation.is_group && setShowGroupSettings(true)}
+          title={conversation.is_group ? 'Xem thông tin nhóm' : ''}
+        >
           <h6 className="mb-0 fw-bold text-truncate">{conversation.name || 'Chat'}</h6>
           <small className="text-success">
-            {conversation.is_group ? '👥 Nhóm' : '🟢 Đang hoạt động'}
+            {conversation.is_group ? '👥 Nhóm • Nhấn để xem thông tin' : '🟢 Đang hoạt động'}
           </small>
         </div>
 
@@ -707,9 +712,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
               className="rounded-circle p-0 d-flex align-items-center justify-content-center"
               style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
               onClick={() => setShowGroupSettings(true)}
-              title="Cài đặt nhóm"
+              title="Thông tin nhóm"
             >
-              ⚙️
+              ℹ️
             </Button>
           )}
 
@@ -746,6 +751,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
               ⋮
             </Dropdown.Toggle>
             <Dropdown.Menu align="end">
+              {conversation.is_group && (
+                <Dropdown.Item onClick={() => setShowGroupSettings(true)}>
+                  ℹ️ Thông tin nhóm
+                </Dropdown.Item>
+              )}
               <Dropdown.Item onClick={() => setShowPoll(true)}>
                 📊 Tạo bình chọn
               </Dropdown.Item>
