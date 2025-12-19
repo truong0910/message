@@ -35,83 +35,42 @@ WHERE is_pinned = TRUE;
 CREATE INDEX IF NOT EXISTS idx_conversation_members_role 
 ON conversation_members(conversation_id, role);
 
--- 5. Cập nhật role cho những thành viên đã tạo conversation (đặt làm admin)
-UPDATE conversation_members cm
-SET role = 'admin'
-FROM conversations c
-WHERE cm.conversation_id = c.id 
-  AND cm.user_id = c.created_by
-  AND cm.role IS NULL;
-
--- 6. RLS Policies cho conversation_members
--- Xóa policy cũ nếu có
+-- 5. Xóa các policy cũ nếu có (để tránh conflict)
 DROP POLICY IF EXISTS "Users can view conversation members" ON conversation_members;
 DROP POLICY IF EXISTS "Users can insert conversation members" ON conversation_members;
 DROP POLICY IF EXISTS "Admins can update conversation members" ON conversation_members;
 DROP POLICY IF EXISTS "Admins can delete conversation members" ON conversation_members;
-
--- Tạo policy mới
-CREATE POLICY "Users can view conversation members" ON conversation_members
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM conversation_members cm2 
-      WHERE cm2.conversation_id = conversation_members.conversation_id 
-      AND cm2.user_id = auth.uid()::integer
-    )
-  );
-
-CREATE POLICY "Users can insert conversation members" ON conversation_members
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM conversation_members cm 
-      WHERE cm.conversation_id = conversation_members.conversation_id 
-      AND cm.user_id = auth.uid()::integer 
-      AND cm.role = 'admin'
-    )
-    OR 
-    -- Cho phép tự thêm khi tạo conversation mới
-    conversation_members.user_id = auth.uid()::integer
-  );
-
-CREATE POLICY "Admins can update conversation members" ON conversation_members
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM conversation_members cm 
-      WHERE cm.conversation_id = conversation_members.conversation_id 
-      AND cm.user_id = auth.uid()::integer 
-      AND cm.role = 'admin'
-    )
-  );
-
-CREATE POLICY "Admins can delete conversation members" ON conversation_members
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM conversation_members cm 
-      WHERE cm.conversation_id = conversation_members.conversation_id 
-      AND cm.user_id = auth.uid()::integer 
-      AND cm.role = 'admin'
-    )
-    OR 
-    -- Cho phép tự rời khỏi nhóm
-    conversation_members.user_id = auth.uid()::integer
-  );
-
--- 7. Cập nhật policy cho messages để support ghim
 DROP POLICY IF EXISTS "Users can update message pins" ON messages;
+DROP POLICY IF EXISTS "Allow all for conversation_members" ON conversation_members;
+DROP POLICY IF EXISTS "Allow all for messages" ON messages;
 
-CREATE POLICY "Users can update message pins" ON messages
-  FOR UPDATE USING (
-    -- Chỉ update tin nhắn trong conversation mà user là thành viên
-    EXISTS (
-      SELECT 1 FROM conversation_members cm 
-      WHERE cm.conversation_id = messages.conversation_id 
-      AND cm.user_id = auth.uid()::integer
-    )
-  );
+-- 6. Tạo policy đơn giản cho conversation_members
+-- (App sử dụng custom auth, không dùng Supabase Auth)
+CREATE POLICY "Allow all for conversation_members" ON conversation_members
+  FOR ALL USING (true) WITH CHECK (true);
 
--- 8. Enable RLS nếu chưa enable
+-- 7. Tạo/cập nhật policy cho messages
+-- Kiểm tra xem đã có policy chưa
+DO $$
+BEGIN
+  -- Nếu chưa có policy nào cho messages, tạo mới
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'messages' AND policyname = 'Allow all for messages'
+  ) THEN
+    CREATE POLICY "Allow all for messages" ON messages
+      FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+-- 8. Enable RLS
 ALTER TABLE conversation_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+-- 9. Cập nhật role = 'member' cho những record chưa có role
+UPDATE conversation_members 
+SET role = 'member' 
+WHERE role IS NULL;
 
 -- =====================================================
 -- XONG! Các tính năng đã được kích hoạt:

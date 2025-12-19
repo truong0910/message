@@ -22,7 +22,7 @@ const CreateGroup: React.FC<CreateGroupProps> = ({ show, onHide, onGroupCreated 
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
-    if (query.length < 2) {
+    if (query.length < 1) {
       setSearchResults([]);
       return;
     }
@@ -72,32 +72,32 @@ const CreateGroup: React.FC<CreateGroupProps> = ({ show, onHide, onGroupCreated 
     setError('');
 
     try {
-      // Create the group conversation
+      // Create the group conversation (without created_by if column doesn't exist)
       const { data: newConv, error: convError } = await supabase
         .from('conversations')
         .insert([{ 
           name: groupName.trim(), 
-          is_group: true,
-          created_by: user.id
+          is_group: true
         }])
         .select()
         .single();
 
-      if (convError) throw convError;
+      if (convError) {
+        console.error('Conversation error:', convError);
+        throw convError;
+      }
 
       // Add creator as admin
       const memberInserts = [
         { 
           conversation_id: newConv.id, 
           user_id: user.id, 
-          role: 'admin',
-          added_by: user.id
+          role: 'admin'
         },
         ...selectedMembers.map((m) => ({
           conversation_id: newConv.id,
           user_id: m.id,
-          role: 'member',
-          added_by: user.id
+          role: 'member'
         }))
       ];
 
@@ -105,7 +105,10 @@ const CreateGroup: React.FC<CreateGroupProps> = ({ show, onHide, onGroupCreated 
         .from('conversation_members')
         .insert(memberInserts);
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('Member error:', memberError);
+        throw memberError;
+      }
 
       // Send system message about group creation
       await supabase
@@ -119,9 +122,9 @@ const CreateGroup: React.FC<CreateGroupProps> = ({ show, onHide, onGroupCreated 
 
       onGroupCreated(newConv);
       handleClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating group:', err);
-      setError('Không thể tạo nhóm. Vui lòng thử lại.');
+      setError(`Không thể tạo nhóm: ${err.message || 'Vui lòng thử lại.'}`);
     }
 
     setCreating(false);
@@ -233,7 +236,7 @@ const CreateGroup: React.FC<CreateGroupProps> = ({ show, onHide, onGroupCreated 
               </ListGroup.Item>
             ))}
           </ListGroup>
-        ) : searchQuery.length >= 2 ? (
+        ) : searchQuery.length >= 1 ? (
           <p className="text-muted text-center small">Không tìm thấy người dùng</p>
         ) : null}
       </Modal.Body>
