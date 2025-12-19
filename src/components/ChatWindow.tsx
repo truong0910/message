@@ -4,6 +4,7 @@ import { useUser } from '../contexts/UserContext';
 import type { Conversation, Message, MessageReaction } from '../types';
 import { Button, Form, Modal, ProgressBar, Dropdown } from 'react-bootstrap';
 import VideoCall from './VideoCall';
+import GroupVideoCall from './GroupVideoCall';
 import MessageReactions from './MessageReactions';
 import TypingIndicator, { useTypingStatus } from './TypingIndicator';
 import EmojiPicker from './EmojiPicker';
@@ -21,6 +22,7 @@ interface IncomingCall {
   conversationId: number;
   callerId: number;
   callerName: string;
+  isGroupCall?: boolean;
 }
 
 // Helper to format file size
@@ -38,6 +40,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
+  const [showGroupCall, setShowGroupCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -88,6 +91,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
               conversationId: signal.conversation_id,
               callerId: signal.caller_id,
               callerName: signal.signal_data?.callerName || 'Unknown',
+              isGroupCall: signal.signal_data?.isGroupCall || false,
             });
           }
         }
@@ -707,15 +711,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           </Button>
           
           {conversation.is_group && (
-            <Button
-              variant="light"
-              className="rounded-circle p-0 d-flex align-items-center justify-content-center"
-              style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
-              onClick={() => setShowGroupSettings(true)}
-              title="Thông tin nhóm"
-            >
-              ℹ️
-            </Button>
+            <>
+              <Button
+                variant="light"
+                className="rounded-circle p-0 d-flex align-items-center justify-content-center"
+                style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
+                onClick={() => setShowGroupCall(true)}
+                title="Gọi nhóm"
+              >
+                📹
+              </Button>
+              <Button
+                variant="light"
+                className="rounded-circle p-0 d-flex align-items-center justify-content-center"
+                style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}
+                onClick={() => setShowGroupSettings(true)}
+                title="Thông tin nhóm"
+              >
+                ℹ️
+              </Button>
+            </>
           )}
 
           {!conversation.is_group && (
@@ -1102,8 +1117,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
         conversationName={conversation.name || 'Chat'}
       />
 
-      {incomingCall && (
+      {/* Group Video Call Modal */}
+      {conversation.is_group && (
+        <GroupVideoCall
+          show={showGroupCall}
+          onHide={() => setShowGroupCall(false)}
+          conversationId={conversation.id}
+          conversationName={conversation.name || 'Nhóm'}
+        />
+      )}
+
+      {/* Incoming Call Handler */}
+      {incomingCall && !incomingCall.isGroupCall && (
         <VideoCall
+          show={true}
+          onHide={() => setIncomingCall(null)}
+          conversationId={incomingCall.conversationId}
+          conversationName={incomingCall.callerName}
+          isIncoming={true}
+          callerId={incomingCall.callerId}
+          callerName={incomingCall.callerName}
+        />
+      )}
+
+      {incomingCall && incomingCall.isGroupCall && (
+        <GroupVideoCall
           show={true}
           onHide={() => setIncomingCall(null)}
           conversationId={incomingCall.conversationId}
