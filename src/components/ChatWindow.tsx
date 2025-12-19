@@ -37,6 +37,7 @@ const formatFileSize = (bytes: number): string => {
 const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [usersMap, setUsersMap] = useState<Record<number, { username: string; avatar_url?: string }>>({});
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
@@ -135,6 +136,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
       // Reverse to get correct order (oldest first)
       const olderMessages = data.reverse();
       
+      // Fetch user info for older messages (group chats)
+      if (conversation.is_group) {
+        const senderIds = [...new Set(olderMessages.map((m: Message) => m.sender_id))];
+        const newSenderIds = senderIds.filter(id => !usersMap[id]);
+        if (newSenderIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, username, avatar_url')
+            .in('id', newSenderIds);
+          
+          if (usersData) {
+            const map: Record<number, { username: string; avatar_url?: string }> = {};
+            usersData.forEach((u: any) => {
+              map[u.id] = { username: u.username, avatar_url: u.avatar_url };
+            });
+            setUsersMap(prev => ({ ...prev, ...map }));
+          }
+        }
+      }
+      
       // Save current scroll position
       const container = messagesContainerRef.current;
       const previousScrollHeight = container?.scrollHeight || 0;
@@ -217,6 +238,23 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
       setMessages(messagesInOrder);
       setHasMoreMessages(data ? data.length >= MESSAGES_PER_PAGE : false);
 
+      // Fetch user info for message senders (for group chats)
+      if (conversation.is_group && data && data.length > 0) {
+        const senderIds = [...new Set(data.map(m => m.sender_id))];
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', senderIds);
+        
+        if (usersData) {
+          const map: Record<number, { username: string; avatar_url?: string }> = {};
+          usersData.forEach(u => {
+            map[u.id] = { username: u.username, avatar_url: u.avatar_url };
+          });
+          setUsersMap(prev => ({ ...prev, ...map }));
+        }
+      }
+
       // Fetch reactions for all messages
       if (messagesInOrder.length > 0) {
         const messageIds = messagesInOrder.map((m: Message) => m.id);
@@ -256,6 +294,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
         },
         async (payload) => {
           const newMsgId = (payload.new as any).id;
+          const senderId = (payload.new as any).sender_id;
           
           // Fetch full message data to ensure we have poll_id and other fields
           const { data: fullMsg } = await supabase
@@ -265,6 +304,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
             .single();
           
           if (fullMsg) {
+            // Fetch sender info if not in cache (for group chats)
+            if (conversation.is_group && !usersMap[senderId]) {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('id, username, avatar_url')
+                .eq('id', senderId)
+                .single();
+              
+              if (userData) {
+                setUsersMap(prev => ({
+                  ...prev,
+                  [userData.id]: { username: userData.username, avatar_url: userData.avatar_url }
+                }));
+              }
+            }
+            
             setMessages((prev) => {
               if (prev.some(m => m.id === fullMsg.id)) {
                 return prev;
@@ -829,6 +884,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
           messages.map((msg) => {
             const isOwn = msg.sender_id === user?.id;
             const replyToMsg = msg.reply_to || messages.find(m => m.id === msg.reply_to_id);
+            const senderInfo = usersMap[msg.sender_id];
             
             return (
               <div
@@ -847,6 +903,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation, onBack }) => {
                     }
                   }}
                 >
+                  {/* Sender name for group chats */}
+                  {conversation.is_group && !isOwn && (
+                    <div 
+                      style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#667eea',
+                        fontWeight: 600,
+                        marginBottom: '2px',
+                        marginLeft: '12px'
+                      }}
+                    >
+                      {senderInfo?.username || 'Unknown'}
+                    </div>
+                  )}
+                  
                   {/* Reply reference */}
                   {replyToMsg && (
                     <div
